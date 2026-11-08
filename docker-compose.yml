@@ -1,0 +1,56 @@
+
+services:
+
+  mongodb:
+    image: mongo:7.0
+    container_name: taskmanager-mongodb
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - task-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: yaswantht28/task-manager-backend:v1
+    container_name: taskmanager-backend
+    environment:
+      PORT: 3000
+      MONGO_URI: mongodb://mongodb:27017/taskmanager
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - task-network
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    image: yaswantht28/task-manager-frontend:v1
+    container_name: taskmanager-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - task-network
+
+volumes:
+  mongo-data:
+    external: true
+    name: taskmanager-mongo-data
+
+networks:
+  task-network:
+    driver: bridge
